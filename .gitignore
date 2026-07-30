@@ -3,6 +3,10 @@
 *.log
 *.pyc
 *.swp
+.flutter_config/
+.pub_cache/
+./.pubspec.lock
+
 .DS_Store
 .atom/
 .build/
