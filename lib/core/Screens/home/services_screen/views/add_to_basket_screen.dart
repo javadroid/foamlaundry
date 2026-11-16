@@ -45,6 +45,18 @@ class _AddToBasketState extends State<AddToBasket> {
 
   List<CategoryItem> allCategories = [];
   List<CategoryItem> filteredCategories = [];
+  final Set<int> _loadingItemIds = {};
+
+  Future<void> _handleBasketAction(int itemId, Future<void> Function() action) async {
+    setState(() => _loadingItemIds.add(itemId));
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        setState(() => _loadingItemIds.remove(itemId));
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -185,7 +197,8 @@ class _AddToBasketState extends State<AddToBasket> {
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-Row(
+                                       Expanded(
+                                         child: Row(
   children: [
      SizedBox(
       width: 100,
@@ -209,19 +222,20 @@ Row(
                                         ),
                                       ),
                                       AppSpaces.horizontalSpace10,
-                                      SizedBox(
+                                      Expanded(
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               item.name,
-                                              maxLines: 3,
+                                              maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: Constants.subHeadingStyle,
                                             ),
                                             AppSpaces.verticalSpace20,
                                             Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   '₦${Constants().currencyFormat(item.price)}',
@@ -235,7 +249,7 @@ Row(
                                                         .primaryAccentColor,
                                                   ),
                                                 ),
-                                                const SizedBox(width: 8),
+                                                const SizedBox(height: 4),
                                                 Text(
                                                   '₦${Constants().currencyFormat((item.price * 1.3).round())}',
                                                   style: Constants.subHeadingStyle
@@ -254,6 +268,8 @@ Row(
                                      
   ],
 ),
+                                       ),
+                                       const SizedBox(width: 8),
 
                                       SizedBox(
                                       
@@ -263,18 +279,25 @@ Row(
                                                     MainAxisAlignment.end,
                                                 children: [
                                                   InkWell(
-                                                    onTap: () async {
-                                                      await basketProvider.addToBasket(
-                                                          context,
-                                                          serviceId,
-                                                          item.id,
-                                                          1,
-                                                          scaffoldKey);
-                                                    },
+                                                    onTap: _loadingItemIds.contains(item.id)
+                                                        ? null
+                                                        : () => _handleBasketAction(
+                                                              item.id,
+                                                              () => basketProvider.addToBasket(
+                                                                  context,
+                                                                  serviceId,
+                                                                  item.id,
+                                                                  1,
+                                                                  scaffoldKey,
+                                                                  itemName: item.name,
+                                                                  itemPrice: item.price,
+                                                                  itemImageUrl: item.imageUrl,
+                                                                  refreshQuote: false),
+                                                            ),
                                                     child: Container(
                                                       padding: const EdgeInsets
                                                           .symmetric(
-                                                          horizontal: 16,
+                                                          horizontal: 18,
                                                           vertical: 8),
                                                       decoration: BoxDecoration(
                                                         color: AppColors
@@ -283,14 +306,23 @@ Row(
                                                             BorderRadius.circular(
                                                                 8),
                                                       ),
-                                                      child: const Text(
-                                                        'Add',
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
-                                                      ),
+                                                      child: _loadingItemIds.contains(item.id)
+                                                          ? const SizedBox(
+                                                              width: 16,
+                                                              height: 16,
+                                                              child: CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: Colors.white,
+                                                              ),
+                                                            )
+                                                          : const Text(
+                                                              'Add',
+                                                              style: TextStyle(
+                                                                color: Colors.white,
+                                                                fontWeight:
+                                                                    FontWeight.bold,
+                                                              ),
+                                                            ),
                                                     ),
                                                   ),
                                                 ],
@@ -307,11 +339,23 @@ Row(
                                                           color: AppColors.fadeBlueAccentColor,
                                                           borderRadius: BorderRadius.circular(8),
                                                           border: Border.all(
-                                                            color: AppColors.navyBlueAccent.withOpacity(0.5),
+                                                            color: AppColors.navyBlueAccent.withValues(alpha: 0.5),
                                                             width: 1.5,
                                                           ),
                                                         ),
-                                                        child: DropdownButtonHideUnderline(
+                                                        child: _loadingItemIds.contains(item.id)
+                                                            ? Padding(
+                                                                padding: const EdgeInsets.all(6.0),
+                                                                child: SizedBox(
+                                                                  width: 16,
+                                                                  height: 16,
+                                                                  child: CircularProgressIndicator(
+                                                                    strokeWidth: 2,
+                                                                    color: AppColors.navyBlueAccent,
+                                                                  ),
+                                                                ),
+                                                              )
+                                                            : DropdownButtonHideUnderline(
                                                           child: DropdownButton<int>(
                                                             value: currentQuantity,
                                                             icon: Icon(
@@ -323,12 +367,16 @@ Row(
                                                               fontWeight: FontWeight.w700,
                                                               color: AppColors.navyBlueAccent,
                                                             ),
-                                                            onChanged: (newValue) async {
+                                                            onChanged: (newValue) {
                                                               if (newValue != null) {
-                                                                await basketProvider.updateQuantity(
+                                                                _handleBasketAction(
                                                                   item.id,
-                                                                  newValue,
-                                                                  scaffoldKey,
+                                                                  () => basketProvider.updateQuantity(
+                                                                    item.id,
+                                                                    newValue,
+                                                                    scaffoldKey,
+                                                                    refreshQuote: false,
+                                                                  ),
                                                                 );
                                                               }
                                                             },
@@ -354,19 +402,23 @@ Row(
                                                         padding: EdgeInsets.zero,
                                                         constraints:
                                                             const BoxConstraints(),
-                                                        onPressed: () async {
-                                                          if (currentQuantity == 1) {
-                                                            await basketProvider.removeFromBasket(
-                                                                    item.id,
-                                                                    scaffoldKey);
-                                                          } else if (currentQuantity >
-                                                              1) {
-                                                            await basketProvider.updateQuantity(
-                                                                    item.id,
-                                                                    currentQuantity - 1,
-                                                                    scaffoldKey);
-                                                          }
-                                                        },
+                                                        onPressed: _loadingItemIds.contains(item.id)
+                                                            ? null
+                                                            : () => _handleBasketAction(
+                                                                  item.id,
+                                                                  () async {
+                                                                    if (currentQuantity == 1) {
+                                                                      await basketProvider.removeFromBasket(
+                                                                          item.id,
+                                                                          scaffoldKey, refreshQuote: false);
+                                                                    } else if (currentQuantity > 1) {
+                                                                      await basketProvider.updateQuantity(
+                                                                          item.id,
+                                                                          currentQuantity - 1,
+                                                                          scaffoldKey, refreshQuote: false);
+                                                                    }
+                                                                  },
+                                                                ),
                                                         icon: Icon(
                                                           Icons.remove_circle,
                                                           color:
@@ -374,25 +426,38 @@ Row(
                                                           size: 28,
                                                         ),
                                                       ),
-                                                      // const SizedBox(width: 8),
-                                                      Text(
-                                                        currentQuantity.toString(),
-                                                        style: const TextStyle(
-                                                          fontSize: 18,
-                                                          fontWeight: FontWeight.w700,
-                                                        ),
+                                                      Padding(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                                                        child: _loadingItemIds.contains(item.id)
+                                                            ? SizedBox(
+                                                                width: 16,
+                                                                height: 16,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2,
+                                                                  color: AppColors.navyBlueAccent,
+                                                                ),
+                                                              )
+                                                            : Text(
+                                                                currentQuantity.toString(),
+                                                                style: const TextStyle(
+                                                                  fontSize: 18,
+                                                                  fontWeight: FontWeight.w700,
+                                                                ),
+                                                              ),
                                                       ),
-                                                      // const SizedBox(width: 8),
                                                       IconButton(
                                                         padding: EdgeInsets.zero,
                                                         constraints:
                                                             const BoxConstraints(),
-                                                        onPressed: () async {
-                                                          await basketProvider.updateQuantity(
+                                                        onPressed: _loadingItemIds.contains(item.id)
+                                                            ? null
+                                                            : () => _handleBasketAction(
                                                                   item.id,
-                                                                  currentQuantity + 1,
-                                                                  scaffoldKey);
-                                                        },
+                                                                  () => basketProvider.updateQuantity(
+                                                                      item.id,
+                                                                      currentQuantity + 1,
+                                                                      scaffoldKey, refreshQuote: false),
+                                                                ),
                                                         icon: Icon(
                                                           Icons.add_circle,
                                                           color:

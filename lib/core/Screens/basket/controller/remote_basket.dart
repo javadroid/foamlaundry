@@ -35,23 +35,25 @@ class BasketClass {
       }
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        log("Basket quote: ${res.body}");
+        debugPrint("Basket quote: ${res.body}");
         return basketQuoteFromJson(res.body);
       } else {
-        log("Failed to get quote: ${res.statusCode} ${res.body}");
+        debugPrint("Failed to get quote: ${res.statusCode} ${res.body}");
         if (scaffoldKey != null) {
-          MyMessageHandler.showSnackBar(scaffoldKey, "Failed to calculate quote");
+          MyMessageHandler.showSnackBar(
+              scaffoldKey, "Failed to calculate quote");
         }
         return null;
       }
     } catch (e) {
-      log("Error fetching quote: $e");
+      debugPrint("Error fetching quote: $e");
       if (scaffoldKey != null) {
         MyMessageHandler.showSnackBar(scaffoldKey, "Failed to calculate quote");
       }
       return null;
     }
   }
+
   static Future<List<BasketList>?> getServices(
       GlobalKey<ScaffoldMessengerState> scaffoldKey,
       [BuildContext? context]) async {
@@ -76,26 +78,30 @@ class BasketClass {
       var response = res.body;
       if (res.statusCode == 200 || res.statusCode == 201) {
         // MyMessageHandler.showSnackBar(scaffoldKey, "Basket loaded");
-        log(response.toString());
+        debugPrint(response.toString());
         return basketListFromJson(response);
       } else {
-        log(res.reasonPhrase.toString());
-        log(res.statusCode.toString());
-        log(res.headers.toString());
-        log(res.body);
+        debugPrint(res.reasonPhrase.toString());
+        debugPrint(res.statusCode.toString());
+        debugPrint(res.headers.toString());
+        debugPrint(res.body);
         MyMessageHandler.showSnackBar(scaffoldKey, "Failed to load Basket");
         return null;
       }
     } catch (e) {
-      log(e.toString());
+      debugPrint(e.toString());
       MyMessageHandler.showSnackBar(scaffoldKey, "Failed to load Basket");
       return [];
     }
   }
 
-  static Future<void> updateQuantity(int categoryId, int quantity,
-      GlobalKey<ScaffoldMessengerState> scaffoldKey,
-      [BuildContext? context]) async {
+  static Future<Map<String, dynamic>?> updateQuantity(
+    int categoryId,
+    int quantity,
+    GlobalKey<ScaffoldMessengerState> scaffoldKey, {
+    bool noFolding = false,
+    BuildContext? context,
+  }) async {
     try {
       final res = await http.put(
         Uri.parse("${Constants.url}/api/user/basket/category/$categoryId"),
@@ -104,23 +110,70 @@ class BasketClass {
           "Accept": "application/json",
           "Content-Type": "application/json",
         },
-        body: jsonEncode({"quantity": quantity}),
+        body: jsonEncode({
+          "quantity": quantity,
+          "noFolding": noFolding,
+        }),
       );
 
       if (res.statusCode == 401 && context != null) {
         LogoutClass.logOut2(context);
-        return;
+        return null;
       }
 
       if (res.statusCode == 200 || res.statusCode == 201) {
-        log("Quantity updated: ${res.body}");
+        debugPrint("Quantity updated: ${res.body}");
+        final data = jsonDecode(res.body);
+        return data is Map<String, dynamic> ? data : null;
       } else {
-        log("Failed to update quantity: ${res.statusCode}");
+        debugPrint("Failed to update quantity: ${res.statusCode}");
         MyMessageHandler.showSnackBar(scaffoldKey, "Failed to update quantity");
+        return null;
       }
     } catch (e) {
-      log("Error updating quantity: $e");
+      debugPrint("Error updating quantity: $e");
       MyMessageHandler.showSnackBar(scaffoldKey, "Error updating quantity");
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> removeItemByCategory(
+    int categoryId,
+    GlobalKey<ScaffoldMessengerState> scaffoldKey, {
+    bool noFolding = false,
+    BuildContext? context,
+  }) async {
+    try {
+      final res = await http.delete(
+        Uri.parse("${Constants.url}/api/user/basket/category/$categoryId"),
+        headers: {
+          "Authorization": "Bearer ${HiveClass.getToken()}",
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "noFolding": noFolding,
+        }),
+      );
+
+      if (res.statusCode == 401 && context != null) {
+        LogoutClass.logOut2(context);
+        return null;
+      }
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        debugPrint("Item removed: ${res.body}");
+        final data = jsonDecode(res.body);
+        return data is Map<String, dynamic> ? data : null;
+      } else {
+        debugPrint("Failed to remove item: ${res.statusCode}");
+        MyMessageHandler.showSnackBar(scaffoldKey, "Failed to remove item");
+        return null;
+      }
+    } catch (e) {
+      debugPrint("Error removing item: $e");
+      MyMessageHandler.showSnackBar(scaffoldKey, "Error removing item");
+      return null;
     }
   }
 
@@ -144,11 +197,11 @@ class BasketClass {
       if (res.statusCode == 200 || res.statusCode == 201) {
         MyMessageHandler.showSnackBar(scaffoldKey, "Basket cleared");
       } else {
-        log("Failed to clear basket: ${res.statusCode}");
+        debugPrint("Failed to clear basket: ${res.statusCode}");
         MyMessageHandler.showSnackBar(scaffoldKey, "Failed to clear basket");
       }
     } catch (e) {
-      log("Error clearing basket: $e");
+      debugPrint("Error clearing basket: $e");
       MyMessageHandler.showSnackBar(scaffoldKey, "Error clearing basket");
     }
   }

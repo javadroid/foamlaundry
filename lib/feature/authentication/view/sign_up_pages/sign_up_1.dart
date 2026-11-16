@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:foam_mobile/core/hive/hive.dart';
 import 'package:foam_mobile/core/services/location_service.dart';
+import 'package:foam_mobile/feature/authentication/controller/provider/authprovider.dart';
 import 'package:foam_mobile/feature/authentication/model/log_out_model.dart';
 import 'package:foam_mobile/feature/authentication/model/sign_up_model.dart';
 import 'package:foam_mobile/utils/values.dart';
@@ -8,9 +11,12 @@ import 'package:foam_mobile/widgets/gradient_button.dart';
 import 'package:foam_mobile/widgets/message_handler.dart';
 import 'package:foam_mobile/widgets/my_text_field.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 
 class SignUpPage1 extends StatefulWidget {
-  const SignUpPage1({super.key});
+  final bool isFromProfile;
+  const SignUpPage1({super.key, this.isFromProfile = false});
 
   @override
   State<SignUpPage1> createState() => _SignUpPage1State();
@@ -42,6 +48,30 @@ class _SignUpPage1State extends State<SignUpPage1> {
   void initState() {
     super.initState();
     addressController.addListener(_onAddressChanged);
+
+    if (widget.isFromProfile) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        if (auth.addressStreet.isNotEmpty) {
+          addressController.text = auth.addressStreet;
+        }
+        if (auth.addressCity.isNotEmpty) {
+          cityController.text = auth.addressCity;
+        }
+        if (auth.addressState.isNotEmpty) {
+          stateController.text = auth.addressState;
+        }
+        if (auth.addressLga.isNotEmpty) {
+          lgaController.text = auth.addressLga;
+        }
+        if (auth.addressLatitude != null && auth.addressLongitude != null) {
+          setState(() {
+            latitude = auth.addressLatitude;
+            longitude = auth.addressLongitude;
+          });
+        }
+      });
+    }
   }
 
   void _onAddressChanged() {
@@ -76,7 +106,7 @@ class _SignUpPage1State extends State<SignUpPage1> {
     });
   }
 
-  void _selectSuggestion(AddressSuggestion suggestion) {
+  Future<void> _selectSuggestion(AddressSuggestion suggestion) async {
     setState(() {
       _isAddressSelected = true;
       addressController.text = suggestion.title;
@@ -97,6 +127,17 @@ class _SignUpPage1State extends State<SignUpPage1> {
       _isSearchingSuggestions = false;
     });
     FocusScope.of(context).unfocus();
+
+    if (suggestion.details.latitude == 0.0) {
+      final resolved =
+          await LocationService.resolveSuggestionDetails(suggestion);
+      if (mounted && resolved.latitude != 0.0) {
+        setState(() {
+          latitude = resolved.latitude;
+          longitude = resolved.longitude;
+        });
+      }
+    }
   }
 
   void _showLocationPermissionModal({String? message}) {
@@ -111,7 +152,8 @@ class _SignUpPage1State extends State<SignUpPage1> {
           elevation: 10,
           backgroundColor: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 24.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 22.0, vertical: 24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -217,24 +259,40 @@ class _SignUpPage1State extends State<SignUpPage1> {
     try {
       final details = await LocationService.autoDetectLocation();
       if (details != null) {
+        final street = details.street.isNotEmpty
+            ? details.street
+            : (details.formattedAddress.isNotEmpty
+                ? details.formattedAddress
+                : '${details.city}, ${details.state}');
+        final city = details.city.isNotEmpty ? details.city : 'Port Harcourt';
+        final state = details.state.isNotEmpty ? details.state : 'Rivers State';
+        final lga = details.lga.isNotEmpty ? details.lga : city;
+
         setState(() {
-          if (details.street.isNotEmpty) addressController.text = details.street;
-          if (details.city.isNotEmpty) cityController.text = details.city;
-          if (details.state.isNotEmpty) stateController.text = details.state;
-          if (details.lga.isNotEmpty) lgaController.text = details.lga;
+          _isAddressSelected = true;
+          _addressSuggestions = <AddressSuggestion>[];
+          _isSearchingSuggestions = false;
+
+          addressController.text = street;
+          cityController.text = city;
+          stateController.text = state;
+          lgaController.text = lga;
+
           latitude = details.latitude;
           longitude = details.longitude;
         });
+
         MyMessageHandler.showSnackBar(
           _scaffoldKey,
-          'Location detected: ${details.city}, ${details.state}',
+          'Location detected: $city, $state',
         );
       } else {
         _showLocationPermissionModal();
       }
     } catch (e) {
       _showLocationPermissionModal(
-        message: 'Could not access device location ($e). Please grant location permission in settings or enter your address manually.',
+        message:
+            'Could not access device location ($e). Please grant location permission in settings or enter your address manually.',
       );
     } finally {
       if (mounted) {
@@ -268,68 +326,85 @@ class _SignUpPage1State extends State<SignUpPage1> {
           backgroundColor: Colors.white,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF0F172A), size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Color(0xFF0F172A), size: 20),
             onPressed: () => Navigator.maybePop(context),
           ),
-          actions: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 12.0),
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-              decoration: BoxDecoration(
-                color: AppColors.fadeBlueAccentColor,
-                borderRadius: BorderRadius.circular(20.0),
-              ),
-              child: Text(
-                'Step 2 of 2',
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryAccentColor,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: () => LogoutClass.logOut2(context),
-              child: Text(
-                'Log Out',
-                style: GoogleFonts.dmSans(
-                  color: const Color(0xFF94A3B8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
+          title: widget.isFromProfile
+              ? Text(
+                  'Pickup Address',
+                  style: GoogleFonts.dmSans(
+                    color: const Color(0xFF0F172A),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                )
+              : null,
+          centerTitle: true,
+          actions: widget.isFromProfile
+              ? null
+              : [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12.0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 4.0),
+                    decoration: BoxDecoration(
+                      color: AppColors.fadeBlueAccentColor,
+                      borderRadius: BorderRadius.circular(20.0),
+                    ),
+                    child: Text(
+                      'Step 2 of 2',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryAccentColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => LogoutClass.logOut2(context),
+                    child: Text(
+                      'Log Out',
+                      style: GoogleFonts.dmSans(
+                        color: const Color(0xFF94A3B8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
         ),
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Progress Bar (100%)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18.0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4.0),
-                        child: LinearProgressIndicator(
-                          value: 1.0,
-                          backgroundColor: const Color(0xFFE2E8F0),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.primaryAccentColor,
+                    // Progress Bar (100%) - only for signup onboarding
+                    if (!widget.isFromProfile) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 18.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4.0),
+                          child: LinearProgressIndicator(
+                            value: 1.0,
+                            backgroundColor: const Color(0xFFE2E8F0),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.primaryAccentColor,
+                            ),
+                            minHeight: 4,
                           ),
-                          minHeight: 4,
                         ),
                       ),
-                    ),
-
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
+                    ],
 
                     // Header
                     Padding(
@@ -338,7 +413,7 @@ class _SignUpPage1State extends State<SignUpPage1> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Pickup Address 📍',
+                            'Pickup Address ',
                             style: GoogleFonts.dmSans(
                               color: const Color(0xFF0F172A),
                               fontSize: 26,
@@ -360,112 +435,67 @@ class _SignUpPage1State extends State<SignUpPage1> {
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
-                    // Hero "Use Current Location" Card
+                    // Compact "Use Current Location" Button
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 18.0),
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: isDetectingLocation ? null : _handleAutoDetectLocation,
-                          borderRadius: BorderRadius.circular(18),
+                          onTap: isDetectingLocation
+                              ? null
+                              : _handleAutoDetectLocation,
+                          borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            padding: const EdgeInsets.all(16),
+                            height: 44,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.fadeBlueAccentColor,
-                                  Colors.white,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(18),
+                              color: AppColors.primaryAccentColor
+                                  .withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: AppColors.primaryAccentColor.withValues(alpha: 0.35),
-                                width: 1.4,
+                                color: AppColors.primaryAccentColor
+                                    .withValues(alpha: 0.28),
+                                width: 1.2,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primaryAccentColor.withValues(alpha: 0.06),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  width: 46,
-                                  height: 46,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
+                                if (isDetectingLocation) ...[
+                                  SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
                                         AppColors.primaryAccentColor,
-                                        AppColors.oceanBlueColor,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
+                                      ),
                                     ),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.primaryAccentColor.withValues(alpha: 0.25),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
                                   ),
-                                  child: isDetectingLocation
-                                      ? const Center(
-                                          child: SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2.2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                            ),
-                                          ),
-                                        )
-                                      : const Icon(
-                                          Icons.my_location_rounded,
-                                          color: Colors.white,
-                                          size: 22,
-                                        ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        isDetectingLocation
-                                            ? 'Detecting your location...'
-                                            : 'Use Current Location',
-                                        style: GoogleFonts.dmSans(
-                                          color: const Color(0xFF0F172A),
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        isDetectingLocation
-                                            ? 'Getting GPS coordinates & address...'
-                                            : 'Tap to auto-fill street, city, LGA & state',
-                                        style: GoogleFonts.dmSans(
-                                          color: const Color(0xFF64748B),
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                    ],
+                                  const SizedBox(width: 8),
+                                ] else ...[
+                                  Icon(
+                                    Icons.my_location_rounded,
+                                    color: AppColors.primaryAccentColor,
+                                    size: 17,
                                   ),
-                                ),
-                                Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  size: 14,
-                                  color: AppColors.primaryAccentColor,
+                                  const SizedBox(width: 6),
+                                ],
+                                Flexible(
+                                  child: Text(
+                                    isDetectingLocation
+                                        ? 'Detecting location...'
+                                        : 'Use Current Location',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.dmSans(
+                                      color: AppColors.primaryAccentColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13.5,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -474,32 +504,35 @@ class _SignUpPage1State extends State<SignUpPage1> {
                       ),
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 14),
 
                     // Divider
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 22.0),
                       child: Row(
                         children: [
-                          const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                          const Expanded(
+                              child: Divider(color: Color(0xFFE2E8F0))),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12.0),
                             child: Text(
                               'OR ENTER / SEARCH ADDRESS',
                               style: GoogleFonts.dmSans(
-                                fontSize: 11.5,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: const Color(0xFF94A3B8),
                                 letterSpacing: 0.5,
                               ),
                             ),
                           ),
-                          const Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                          const Expanded(
+                              child: Divider(color: Color(0xFFE2E8F0))),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
 
                     // Street Address with Autocomplete
                     MyTextField(
@@ -520,13 +553,15 @@ class _SignUpPage1State extends State<SignUpPage1> {
                     // Live search loading indicator
                     if (_isSearchingSuggestions) ...[
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 4.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 22.0, vertical: 4.0),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(2),
                           child: LinearProgressIndicator(
                             minHeight: 2,
                             backgroundColor: const Color(0xFFE2E8F0),
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryAccentColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.primaryAccentColor),
                           ),
                         ),
                       ),
@@ -535,7 +570,8 @@ class _SignUpPage1State extends State<SignUpPage1> {
                     // Suggestions Dropdown Card
                     if (_addressSuggestions.isNotEmpty) ...[
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18.0, vertical: 6.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18.0, vertical: 6.0),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -553,9 +589,11 @@ class _SignUpPage1State extends State<SignUpPage1> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14.0, vertical: 10.0),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'Suggested Locations',
@@ -568,25 +606,31 @@ class _SignUpPage1State extends State<SignUpPage1> {
                                     GestureDetector(
                                       onTap: () {
                                         setState(() {
-                                          _addressSuggestions = <AddressSuggestion>[];
+                                          _addressSuggestions =
+                                              <AddressSuggestion>[];
                                         });
                                       },
-                                      child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF94A3B8)),
+                                      child: const Icon(Icons.close_rounded,
+                                          size: 16, color: Color(0xFF94A3B8)),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                              const Divider(
+                                  height: 1, color: Color(0xFFF1F5F9)),
                               ListView.separated(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 itemCount: _addressSuggestions.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                                separatorBuilder: (_, __) => const Divider(
+                                    height: 1, color: Color(0xFFF1F5F9)),
                                 itemBuilder: (BuildContext context, int index) {
-                                  final AddressSuggestion suggestion = _addressSuggestions[index];
+                                  final AddressSuggestion suggestion =
+                                      _addressSuggestions[index];
                                   return ListTile(
                                     dense: true,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 2.0),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 14.0, vertical: 2.0),
                                     leading: Container(
                                       padding: const EdgeInsets.all(6),
                                       decoration: BoxDecoration(
@@ -639,6 +683,7 @@ class _SignUpPage1State extends State<SignUpPage1> {
                             textInputAction: TextInputAction.next,
                             obscureText: false,
                             isPassword: false,
+                            padding: const EdgeInsets.only(left: 18, right: 6),
                             prefixIcon: const Icon(
                               Icons.location_city_rounded,
                               color: Color(0xFF94A3B8),
@@ -654,6 +699,7 @@ class _SignUpPage1State extends State<SignUpPage1> {
                             textInputAction: TextInputAction.next,
                             obscureText: false,
                             isPassword: false,
+                            padding: const EdgeInsets.only(left: 6, right: 18),
                             prefixIcon: const Icon(
                               Icons.map_outlined,
                               color: Color(0xFF94A3B8),
@@ -704,7 +750,8 @@ class _SignUpPage1State extends State<SignUpPage1> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 18.0),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0, vertical: 8.0),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF0FDF4),
                             borderRadius: BorderRadius.circular(10),
@@ -712,7 +759,8 @@ class _SignUpPage1State extends State<SignUpPage1> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF16A34A)),
+                              const Icon(Icons.check_circle_rounded,
+                                  size: 16, color: Color(0xFF16A34A)),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -740,11 +788,16 @@ class _SignUpPage1State extends State<SignUpPage1> {
                         onPressed: () async {
                           final street = addressController.text.trim();
                           final city = cityController.text.trim();
+                          final state = stateController.text.trim();
+                          final lga = lgaController.text.trim();
+                          final instructions =
+                              instructionController.text.trim();
 
                           if (street.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Please enter your street address'),
+                                content:
+                                    Text('Please enter your street address'),
                                 backgroundColor: Colors.redAccent,
                               ),
                             );
@@ -764,26 +817,122 @@ class _SignUpPage1State extends State<SignUpPage1> {
                             loading = true;
                           });
 
-                          await SignUpModel.getInputAddress(
-                            context,
-                            street,
-                            city,
-                            instructionController.text.trim(),
-                            'Nigeria',
-                            _scaffoldKey,
-                            state: stateController.text.trim(),
-                            lga: lgaController.text.trim(),
-                            latitude: latitude,
-                            longitude: longitude,
-                          );
+                          if (widget.isFromProfile) {
+                            final auth = Provider.of<AuthProvider>(context,
+                                listen: false);
+                            try {
+                              final res = await http.post(
+                                Uri.parse("${Constants.url}/api/user/address"),
+                                headers: {
+                                  "Authorization":
+                                      "Bearer ${HiveClass.getToken()}",
+                                  "Accept": "application/json",
+                                  "Content-Type": "application/json",
+                                },
+                                body: jsonEncode({
+                                  "street": street,
+                                  "city": city,
+                                  "state": state.isNotEmpty ? state : null,
+                                  "lga": lga.isNotEmpty ? lga : null,
+                                  "postalCode": instructions,
+                                  "country": "Nigeria",
+                                  "latitude": latitude ?? 0,
+                                  "longitude": longitude ?? 0,
+                                }),
+                              );
+                              final data = json.decode(res.body);
 
-                          if (mounted) {
-                            setState(() {
-                              loading = false;
-                            });
+                              if (res.statusCode == 200 ||
+                                  res.statusCode == 201) {
+                                auth.fillAddress(
+                                  street,
+                                  city,
+                                  instructions,
+                                  "Nigeria",
+                                  state: state,
+                                  lga: lga,
+                                  latitude: latitude,
+                                  longitude: longitude,
+                                );
+
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        data["message"] ??
+                                            'Pickup address updated successfully!',
+                                        style: GoogleFonts.dmSans(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      backgroundColor: const Color(0xFF10B981),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                                  Navigator.pop(context, true);
+                                }
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        data["error"] ??
+                                            'Could not save address. Please try again.',
+                                        style: GoogleFonts.dmSans(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Network error: $e'),
+                                    backgroundColor: const Color(0xFFEF4444),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() {
+                                  loading = false;
+                                });
+                              }
+                            }
+                          } else {
+                            await SignUpModel.getInputAddress(
+                              context,
+                              street,
+                              city,
+                              instructionController.text.trim(),
+                              'Nigeria',
+                              _scaffoldKey,
+                              state: stateController.text.trim(),
+                              lga: lgaController.text.trim(),
+                              latitude: latitude ?? 0,
+                              longitude: longitude ?? 0,
+                            );
+
+                            if (mounted) {
+                              setState(() {
+                                loading = false;
+                              });
+                            }
                           }
                         },
-                        text: 'Complete Registration',
+                        text: widget.isFromProfile
+                            ? 'Save Pickup Address'
+                            : 'Complete Registration',
                       ),
                     ),
 
@@ -798,4 +947,3 @@ class _SignUpPage1State extends State<SignUpPage1> {
     );
   }
 }
-

@@ -1,4 +1,4 @@
-import 'dart:developer';
+import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 
 class HiveClass {
@@ -8,13 +8,14 @@ class HiveClass {
 
   // inserting the token
   static void insertToken(String token) {
-    log(token);
+    debugPrint(token);
     foamBox.put('token', token);
   }
 
   // getting the token
   static String getToken() {
-    return foamBox.get('token');
+    final token = foamBox.get('token');
+    return (token is String) ? token : '';
   }
 
   // deleting the token
@@ -24,20 +25,22 @@ class HiveClass {
 
   // check if token exist
   static bool tokenExist() {
-    return foamBox.get('token') != null;
+    final token = foamBox.get('token');
+    return token is String && token.trim().isNotEmpty;
   }
 
   /////////////////PROFILE PIC///////////////////
 
   // inserting the token
   static void insertPic(String picture) {
-    log(picture);
+    debugPrint(picture);
     foamBox.put('picture', picture);
   }
 
   // getting the token
   static String getPic() {
-    return foamBox.get('picture') ?? '';
+    final pic = foamBox.get('picture');
+    return (pic is String) ? pic : '';
   }
 
   // deleting the token
@@ -47,7 +50,8 @@ class HiveClass {
 
   // check if token exist
   static bool pictureExists() {
-    return foamBox.get('picture') != null;
+    final pic = foamBox.get('picture');
+    return pic is String && pic.trim().isNotEmpty;
   }
 
   /////////////////ADDRESS///////////////////
@@ -84,6 +88,41 @@ class HiveClass {
   //   foamBox.delete("addresses");
   //   foamBox.put("main", 0);
   // }
+
+  /////////////////DELIVERY & PICKUP DETAILS///////////////////
+  static void saveDeliveryDetails({
+    String? address,
+    String? pickupDate,
+    String? fromTime,
+    String? toTime,
+    String? deliveryDate,
+  }) {
+    if (address != null && address.trim().isNotEmpty) {
+      foamBox.put('delivery_address', address.trim());
+    }
+    if (pickupDate != null && pickupDate.isNotEmpty) {
+      foamBox.put('delivery_pickup_date', pickupDate);
+    }
+    if (fromTime != null && fromTime.isNotEmpty) {
+      foamBox.put('delivery_from_time', fromTime);
+    }
+    if (toTime != null && toTime.isNotEmpty) {
+      foamBox.put('delivery_to_time', toTime);
+    }
+    if (deliveryDate != null && deliveryDate.isNotEmpty) {
+      foamBox.put('delivery_delivery_date', deliveryDate);
+    }
+  }
+
+  static Map<String, String?> getDeliveryDetails() {
+    return {
+      'address': foamBox.get('delivery_address') as String?,
+      'pickupDate': foamBox.get('delivery_pickup_date') as String?,
+      'fromTime': foamBox.get('delivery_from_time') as String?,
+      'toTime': foamBox.get('delivery_to_time') as String?,
+      'deliveryDate': foamBox.get('delivery_delivery_date') as String?,
+    };
+  }
 
   ///////////////////////////////////
   static void clearHive() {

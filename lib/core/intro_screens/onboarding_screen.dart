@@ -7,6 +7,7 @@ import 'package:foam_mobile/feature/authentication/view/auth_pages/login_or_regi
 import 'package:foam_mobile/feature/authentication/view/sign_up_pages/sign_up_0.dart';
 import 'package:foam_mobile/utils/values.dart';
 import 'package:foam_mobile/widgets/click_button.dart';
+import 'package:foam_mobile/widgets/partner_selection_modal.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
@@ -80,6 +81,7 @@ class _OnBoardingScreenState extends State<OnBoardingScreen> {
           child: Column(
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset('assets/images/foam.png'),
                 ],
@@ -159,6 +161,22 @@ class _OnBoardingScreenState extends State<OnBoardingScreen> {
                           color: AppColors.blackAccentColor,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: () => PartnerSelectionModal.show(context),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(
+                        'Partner with us',
+                        style: GoogleFonts.dmSans(
+                          color: AppColors.blackAccentColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           decoration: TextDecoration.underline,
                         ),
                       ),

@@ -6,6 +6,13 @@ import 'package:foam_mobile/core/hive/hive.dart';
 import 'package:foam_mobile/core/intro_screens/onboarding_screen.dart';
 import 'package:foam_mobile/core/splash_function.dart';
 import 'package:foam_mobile/feature/authentication/controller/provider/authprovider.dart';
+import 'package:foam_mobile/feature/vendor/controller/vendor_provider.dart';
+import 'package:foam_mobile/feature/vendor/onboarding/vendor_approved_screen.dart';
+import 'package:foam_mobile/feature/vendor/onboarding/vendor_pending_verification_screen.dart';
+import 'package:foam_mobile/feature/vendor/onboarding/vendor_rejected_screen.dart';
+import 'package:foam_mobile/feature/vendor/vendor_main_screen.dart';
+import 'package:foam_mobile/feature/vendor/onboarding/vendor_onboarding_stepper_screen.dart';
+import 'package:foam_mobile/feature/rider/views/rider_dashboard_screen.dart';
 import 'package:foam_mobile/utils/values.dart';
 import 'package:foam_mobile/widgets/error_widget.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
@@ -29,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     init(context);
-    log('Splash token check: ${HiveClass.getToken()}');
+    debugPrint('Splash token check: ${HiveClass.getToken()}');
   }
 
   init(BuildContext context) async {
@@ -47,7 +54,8 @@ class _SplashScreenState extends State<SplashScreen> {
     // User has a token -> validate with backend
     bool hasAddress = false;
     try {
-      hasAddress = await SplashFunction.init(context).timeout(const Duration(seconds: 6));
+      hasAddress = await SplashFunction.init(context)
+          .timeout(const Duration(seconds: 6));
     } catch (e) {
       debugPrint('Splash init error: $e');
     }
@@ -56,13 +64,39 @@ class _SplashScreenState extends State<SplashScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     if (authProvider.initDone) {
-      if (hasAddress) {
-        Navigator.pushReplacementNamed(context, MainScreen.id);
+      if (authProvider.isRider) {
+        Navigator.pushReplacementNamed(context, RiderDashboardScreen.id);
+      } else if (authProvider.isVendor) {
+        // Vendor routing based on status
+        if (authProvider.vendorStatus == 'APPROVED') {
+          final vendorProvider = Provider.of<VendorProvider>(context, listen: false);
+          await vendorProvider.fetchStores();
+          if (mounted) {
+            if (vendorProvider.stores.isEmpty) {
+              Navigator.pushReplacementNamed(context, VendorApprovedScreen.id);
+            } else {
+              Navigator.pushReplacementNamed(context, VendorMainScreen.id);
+            }
+          }
+        } else if (authProvider.vendorStatus == 'REJECTED') {
+          Navigator.pushReplacementNamed(context, VendorRejectedScreen.id);
+        } else if (authProvider.vendorStatus == 'PENDING') {
+          Navigator.pushReplacementNamed(
+              context, VendorPendingVerificationScreen.id);
+        } else {
+          Navigator.pushReplacementNamed(
+              context, VendorOnboardingStepperScreen.id);
+        }
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const SignUpPage1()),
-        );
+        // Customer routing
+        if (hasAddress) {
+          Navigator.pushReplacementNamed(context, MainScreen.id);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const SignUpPage1()),
+          );
+        }
       }
     } else {
       if (authProvider.initError) {
@@ -135,7 +169,8 @@ class _LoadingState extends State<Loading> {
               debugPrint("onTap ${authProvider.initError}");
               authProvider.updateError(false);
               SplashFunction.init(context);
-            }, logout: true,
+            },
+            logout: true,
           )
         : Scaffold(
             body: Center(

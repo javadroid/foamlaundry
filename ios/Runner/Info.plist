@@ -83,5 +83,17 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Foam Laundry uses your location to auto-detect pickup and delivery addresses and ensure we service your area.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Foam Laundry uses your location for delivery address detection and tracking.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>GIDClientID</key>
+	<string>791114743359-2oschsrqbca3agqbihvqjvg0r95hrk51.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>791114743359-8b6vbiairi8q619vcovm3h8dg5re9u9a.apps.googleusercontent.com</string>
 </dict>
 </plist>

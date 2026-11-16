@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:foam_mobile/core/hive/hive.dart';
@@ -8,6 +7,7 @@ import 'package:foam_mobile/utils/values.dart';
 import 'package:foam_mobile/widgets/gradient_button.dart';
 import 'package:foam_mobile/widgets/message_handler.dart';
 import 'package:foam_mobile/widgets/my_text_field.dart';
+import 'package:foam_mobile/widgets/app_fullscreen_loader.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
@@ -19,12 +19,9 @@ class SocialAuthService {
   static Future<GoogleSignIn> _getGoogleSignIn() async {
     final GoogleSignIn signIn = GoogleSignIn.instance;
     if (!_initialized) {
-      final String clientId = Platform.isAndroid
-          ? Constants.googleClientId
-          : Constants.googleIosClientId;
       await signIn.initialize(
-        serverClientId: clientId,
-        clientId: clientId,
+        clientId: Platform.isIOS ? Constants.googleIosClientId : null,
+        serverClientId: Constants.googleWebClientId,
       );
       _initialized = true;
     }
@@ -57,8 +54,13 @@ class SocialAuthService {
       }
 
       debugPrint("Google Sign-In successful for: ${account.email}");
-      debugPrint(
-          "idToken: ${Uri.parse('${Constants.url}/api/auth/google/callback/login?idToken=${Uri.encodeComponent(idToken)}').toString()}");
+
+      if (!context.mounted) return;
+      AppFullScreenLoader.show(
+        context,
+        message: 'Signing you in...',
+        subtitle: 'Welcome back, checking your informations...',
+      );
 
       // 1. Try logging in first
       final http.Response loginRes = await http.get(
@@ -70,7 +72,6 @@ class SocialAuthService {
         },
       );
 
-      debugPrint('loginRes: $loginRes');
       final dynamic loginBody = jsonDecode(loginRes.body);
       debugPrint(
           'Google login status: ${loginRes.statusCode}, body: $loginBody');
@@ -83,6 +84,10 @@ class SocialAuthService {
           await LoginClass.getProfile(context, scaffoldKey!, isSignup: false);
         }
         return;
+      }
+
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
       }
 
       // 2. If user is not found (404), prompt for phone number to register
@@ -110,18 +115,23 @@ class SocialAuthService {
       final String errorMsg = loginBody['error'] ??
           'Google sign in could not be completed. Please try again.';
       _showError(scaffoldKey, errorMsg);
-    } catch (e, stackTrace) {
+    } catch (e) {
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
+      }
       final String errStr = e.toString();
       // Handle user cancellation gracefully without intrusive error toast
       if (errStr.contains('canceled') ||
           errStr.contains('cancelled') ||
-          errStr.contains('sign_in_canceled')) {
-        log('Google Sign-In cancelled by user');
+          errStr.contains('sign_in_canceled') ||
+          errStr.contains('canceled_by_user') ||
+          errStr.contains('canceledByUser') ||
+          errStr.contains('12501')) {
+        debugPrint('Google Sign-In cancelled by user');
         return;
       }
       debugPrint('Google Sign In Error: $e');
-      log('Google Sign In Error: $e', stackTrace: stackTrace);
-      _showError(scaffoldKey, 'Unable to sign in with Google.');
+      _showError(scaffoldKey, 'Unable to sign in with Google: $e');
     }
   }
 
@@ -133,6 +143,12 @@ class SocialAuthService {
     required String phoneNumber,
   }) async {
     try {
+      AppFullScreenLoader.show(
+        context,
+        message: 'Signing you in...',
+        subtitle: 'Setting up your profile...',
+      );
+
       final http.Response regRes = await http.post(
         Uri.parse(
             '${Constants.url}/api/auth/google/callback/register?idToken=${Uri.encodeComponent(idToken)}'),
@@ -147,7 +163,8 @@ class SocialAuthService {
       );
 
       final dynamic regBody = jsonDecode(regRes.body);
-      log('Google register status: ${regRes.statusCode}, body: $regBody');
+      debugPrint(
+          'Google register status: ${regRes.statusCode}, body: $regBody');
 
       if (regRes.statusCode == 200 || regRes.statusCode == 201) {
         final String token = regBody['token'];
@@ -158,12 +175,18 @@ class SocialAuthService {
           await LoginClass.getProfile(context, scaffoldKey!, isSignup: true);
         }
       } else {
+        if (context.mounted) {
+          AppFullScreenLoader.hide(context);
+        }
         final String errorMsg = regBody['error'] ??
             'Google registration could not be completed. Please try again.';
         _showError(scaffoldKey, errorMsg);
       }
     } catch (e) {
-      log('Google Register Error: $e');
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
+      }
+      debugPrint('Google Register Error: $e');
       _showError(scaffoldKey,
           'Unable to complete registration. Please check your connection and try again.');
     }
@@ -212,12 +235,23 @@ class SocialAuthService {
       final String? firstName = credential.givenName;
       final String? lastName = credential.familyName;
 
-      log('Apple Sign-In successful. User: ${credential.userIdentifier}, email: $appleEmail');
+      debugPrint(
+          'Apple Sign-In successful. User: ${credential.userIdentifier}, email: $appleEmail');
+
+      if (!context.mounted) return;
+      AppFullScreenLoader.show(
+        context,
+        message: 'Signing you in...',
+        subtitle: 'Welcome back, checking your informations...',
+      );
 
       // 1. Try logging in first
+      final String emailParam = (appleEmail != null && appleEmail.isNotEmpty)
+          ? '&email=${Uri.encodeComponent(appleEmail)}'
+          : '';
       final http.Response loginRes = await http.get(
         Uri.parse(
-            '${Constants.url}/api/auth/apple/callback/login?identityToken=${Uri.encodeComponent(identityToken)}'),
+            '${Constants.url}/api/auth/apple/callback/login?identityToken=${Uri.encodeComponent(identityToken)}$emailParam'),
         headers: <String, String>{
           'Accept': 'application/json',
           'Authorization': 'Bearer $identityToken',
@@ -225,7 +259,8 @@ class SocialAuthService {
       );
 
       final dynamic loginBody = jsonDecode(loginRes.body);
-      log('Apple login status: ${loginRes.statusCode}, body: $loginBody');
+      debugPrint(
+          'Apple login status: ${loginRes.statusCode}, body: $loginBody');
 
       if (loginRes.statusCode == 200) {
         final String token = loginBody['token'];
@@ -235,6 +270,10 @@ class SocialAuthService {
           await LoginClass.getProfile(context, scaffoldKey!, isSignup: false);
         }
         return;
+      }
+
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
       }
 
       // 2. If user is not found (404), prompt for phone number & registration details
@@ -269,18 +308,23 @@ class SocialAuthService {
       final String errorMsg = loginBody['error'] ??
           'Apple sign in could not be completed. Please try again.';
       _showError(scaffoldKey, errorMsg);
-    } on SignInWithAppleAuthorizationException catch (e, stackTrace) {
-      log('Apple Auth Exception: ${e.code}', stackTrace: stackTrace);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
+      }
+      debugPrint('Apple Auth Exception: ${e.code}, message: ${e.message}');
       if (e.code == AuthorizationErrorCode.canceled) {
         // User cancelled Apple sign in dialog
         return;
       }
       _showError(scaffoldKey,
-          'Apple Sign-In was cancelled or could not be completed.');
-    } catch (e, stackTrace) {
-      log('Apple Sign In Error: $e', stackTrace: stackTrace);
-      _showError(scaffoldKey,
-          'Apple Sign-In is unavailable on this device. Please use Google or Email.');
+          'Apple Sign-In could not be completed (${e.code.name}).');
+    } catch (e) {
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
+      }
+      debugPrint('Apple Sign In Error: $e');
+      _showError(scaffoldKey, 'Unable to sign in with Apple: $e');
     }
   }
 
@@ -295,6 +339,12 @@ class SocialAuthService {
     String? lastName,
   }) async {
     try {
+      AppFullScreenLoader.show(
+        context,
+        message: 'Signing you in...',
+        subtitle: 'Setting up your profile...',
+      );
+
       final http.Response regRes = await http.post(
         Uri.parse(
             '${Constants.url}/api/auth/apple/callback/register?identityToken=${Uri.encodeComponent(identityToken)}'),
@@ -312,7 +362,7 @@ class SocialAuthService {
       );
 
       final dynamic regBody = jsonDecode(regRes.body);
-      log('Apple register status: ${regRes.statusCode}, body: $regBody');
+      debugPrint('Apple register status: ${regRes.statusCode}, body: $regBody');
 
       if (regRes.statusCode == 200 || regRes.statusCode == 201) {
         final String token = regBody['token'];
@@ -323,12 +373,18 @@ class SocialAuthService {
           await LoginClass.getProfile(context, scaffoldKey!, isSignup: true);
         }
       } else {
+        if (context.mounted) {
+          AppFullScreenLoader.hide(context);
+        }
         final String errorMsg = regBody['error'] ??
             'Apple registration could not be completed. Please try again.';
         _showError(scaffoldKey, errorMsg);
       }
     } catch (e) {
-      log('Apple Register Error: $e');
+      if (context.mounted) {
+        AppFullScreenLoader.hide(context);
+      }
+      debugPrint('Apple Register Error: $e');
       _showError(scaffoldKey,
           'Unable to complete registration. Please check your connection and try again.');
     }

@@ -1,21 +1,34 @@
 part of '../values.dart';
 
 class Constants {
-  // URL
-  // static String url = "http://10.50.125.52:8081";
-  // static String url = "http://10.0.2.2:8081";
-  static String url = "https://foamlaundryapp.com";
+  // ── API URL ──
+  //
+  // .env → ENV=local  uses localhost (works via `adb reverse tcp:8545 tcp:8545`)
+  // .env → ENV=prod   uses production (default)
+  //
+
+  static const String _prodUrl = 'https://foamlaundryapp.com';
+  static const String _localUrl = 'http://127.0.0.1:8545';
+
+  // Initialized by Constants.init() after dotenv.load() in main()
+  static String url = _prodUrl;
+
+  /// Call once in main() after dotenv.load().
+  static void init() {
+    final env = dotenv.get('ENV', fallback: 'prod');
+    url = (env == 'local') ? _localUrl : _prodUrl;
+    debugPrint('[Constants] ENV=$env → url=$url');
+  }
 
   // PayStack public key
   static String payStackPublicKey =
-      "pk_live_1ed764614ba0e2993ae08d6312e2cccb9a5e6c69";
+      "pk_test_54b24598d6fa688ebf11aa69f689ae41e7765d2d";
 
-  // PayStack secret key
-  static String payStackSecretKey =
-      "sk_live_c922bedfe508ed1cb6d0760c1abbd86064ff155e";
+  // OneSignal App ID
+  static String oneSignalAppId = "b3f03235-0ed2-4afa-8818-e38f36a453d8";
 
-  // Google API key
-  static const String googleAPIKey = 'AIzaSyA7hyiwzU6LHTHhtntU36tAPRi46DXrygo';
+  // Google API key (Working key with Geocoding, Places, Directions & Static Maps enabled)
+  static const String googleAPIKey = "AIzaSyB5O_2oARf0lU5YlGfDsxgeEj_l_HxOjNY";
   static const String googleMapsApiKey =
       "AIzaSyB5O_2oARf0lU5YlGfDsxgeEj_l_HxOjNY";
   // Google OAuth 2.0 Client IDs

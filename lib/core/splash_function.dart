@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:foam_mobile/core/hive/hive.dart';
 import 'package:foam_mobile/core/intro_screens/onboarding_screen.dart';
+import 'package:foam_mobile/core/services/notification_service.dart';
+import 'package:foam_mobile/core/services/socket_service.dart';
 import 'package:foam_mobile/feature/authentication/controller/provider/authprovider.dart';
 import 'package:foam_mobile/feature/authentication/model/log_out_model.dart';
 import 'package:foam_mobile/utils/values.dart';
@@ -30,26 +32,42 @@ class SplashFunction {
       ).timeout(const Duration(seconds: 7));
       debugPrint('Profile response status: ${res.statusCode}');
       debugPrint('Profile response body: ${res.body}');
-      
+
       if (res.statusCode == 401) {
         LogoutClass.logOut2(context);
         return false;
       }
-      
+
       var response = json.decode(res.body);
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         var user = response["user"];
         authProvider.fillAuth(
-          user["firstName"],
-          user["lastName"],
+          user["firstName"] ?? '',
+          user["lastName"] ?? '',
           user["middleName"] ?? '',
-          user["email"],
-          user["phone"],
+          user["email"] ?? '',
+          user["phone"] ?? '',
+          role: user["role"] ?? 'USER',
+          businessName: user["businessName"] ?? '',
+          vendorStatus: user["vendorStatus"] ?? 'NOT_STARTED',
+          vendorRejectionReason: user["vendorRejectionReason"],
+          avatarUrl: user["avatarUrl"],
+          rider: user["rider"],
         );
 
+        if (user["id"] != null) {
+          final String userId = user["id"].toString();
+          if (userId.isNotEmpty) {
+            NotificationService.registerUser(userId);
+            SocketService.connect();
+          }
+        }
+
         bool hasAddress = false;
-        if (user["address"] != null && user["address"] is List && (user["address"] as List).isNotEmpty) {
+        if (user["address"] != null &&
+            user["address"] is List &&
+            (user["address"] as List).isNotEmpty) {
           var address = user["address"][0];
           authProvider.fillAddress(
             address["street"],
@@ -92,16 +110,17 @@ class SplashFunction {
       );
       debugPrint('Address response status: ${res.statusCode}');
       debugPrint('Address response body: ${res.body}');
-      
+
       if (res.statusCode == 401) {
         LogoutClass.logOut2(context);
         return false;
       }
-      
+
       var response = json.decode(res.body);
       if (res.statusCode == 200 || res.statusCode == 201) {
         var authProvider = Provider.of<AuthProvider>(context, listen: false);
-        if (response["address"] != null && (response["address"] as List).isNotEmpty) {
+        if (response["address"] != null &&
+            (response["address"] as List).isNotEmpty) {
           var address = response["address"][0];
           authProvider.fillAddress(
             address["street"],
