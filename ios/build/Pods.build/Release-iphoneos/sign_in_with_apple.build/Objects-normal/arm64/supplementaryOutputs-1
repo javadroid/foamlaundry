@@ -1,0 +1,12 @@
+{
+  "/Users/mac/.pub-cache/hosted/pub.dev/sign_in_with_apple-6.1.4/ios/Classes/SignInWithAppleAvailablePlugin.swift" : {
+    "abi-baseline-json" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple.abi.json",
+    "const-values" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple-primary.swiftconstvalues",
+    "dependencies" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple-primary.d",
+    "diagnostics" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple-primary.dia",
+    "objc-header" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple-Swift.h",
+    "swiftdoc" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple.swiftdoc",
+    "swiftmodule" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple.swiftmodule",
+    "swiftsourceinfo" : "/Users/mac/Desktop/Screen/foam_mobile-main/ios/build/Pods.build/Release-iphoneos/sign_in_with_apple.build/Objects-normal/arm64/sign_in_with_apple.swiftsourceinfo"
+  }
+}
